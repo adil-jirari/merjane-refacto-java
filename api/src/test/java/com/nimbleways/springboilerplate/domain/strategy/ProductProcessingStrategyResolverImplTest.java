@@ -1,6 +1,7 @@
 package com.nimbleways.springboilerplate.domain.strategy;
 
 import com.nimbleways.springboilerplate.common.domain.valueobject.ProductType;
+import com.nimbleways.springboilerplate.domain.exception.OrderDomainException;
 import com.nimbleways.springboilerplate.domain.exception.UnsupportedProductException;
 import com.nimbleways.springboilerplate.utils.Annotations.UnitTest;
 import org.junit.jupiter.api.Test;
@@ -51,13 +52,26 @@ class ProductProcessingStrategyResolverImplTest {
 
     @Test
     void shouldThrowExceptionWhenProductTypeIsNull() {
-        UnsupportedProductException exception = assertThrows(
-                UnsupportedProductException.class,
+        OrderDomainException exception = assertThrows(
+                OrderDomainException.class,
                 () -> resolver.resolve(null)
         );
 
         assertEquals(
                 "Product type cannot be null",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    void shouldThrowExceptionWhenProductTypeIsUnknown() {
+        UnsupportedProductException exception = assertThrows(
+                UnsupportedProductException.class,
+                () -> resolver.resolve(ProductType.UNKNOWN)
+        );
+
+        assertEquals(
+                "Unsupported product type: UNKNOWN",
                 exception.getMessage()
         );
     }

@@ -6,6 +6,7 @@ import com.nimbleways.springboilerplate.domain.event.ProductDecreasedEvent;
 import com.nimbleways.springboilerplate.domain.event.ProductDelayedEvent;
 import com.nimbleways.springboilerplate.domain.event.ProductProcessedEvent;
 import com.nimbleways.springboilerplate.domain.exception.OrderDomainException;
+import com.nimbleways.springboilerplate.domain.exception.UnsupportedProductException;
 import com.nimbleways.springboilerplate.domain.valueobject.ProductId;
 import com.nimbleways.springboilerplate.utils.Annotations.UnitTest;
 import org.junit.jupiter.api.Test;
@@ -66,8 +67,8 @@ class NormalProductProcessingStrategyTest {
                 .leadTime(0)
                 .build();
 
-        OrderDomainException exception = assertThrows(
-                OrderDomainException.class,
+        UnsupportedProductException exception = assertThrows(
+                UnsupportedProductException.class,
                 () -> strategy.process(product)
         );
 

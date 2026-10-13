@@ -510,6 +510,17 @@ Products are persisted before event publication.
 
 ---
 
+# Error Handling
+
+Application and domain exceptions are translated into HTTP responses through a dedicated global exception handler.
+
+| Exception | HTTP Status |
+|-----------|-------------|
+| OrderNotFoundException | 404 Not Found |
+| UnsupportedProductException | 400 Bad Request |
+| OrderDomainException | 400 Bad Request |
+| Exception | 500 Internal Server Error |
+
 # Testing Strategy
 
 The project includes both unit and integration tests.

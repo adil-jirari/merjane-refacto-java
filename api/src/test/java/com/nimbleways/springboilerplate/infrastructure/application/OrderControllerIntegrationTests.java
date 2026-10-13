@@ -56,6 +56,23 @@ class OrderControllerIntegrationTests {
         assertEquals(resultOrder.get().getId().getValue(), order.getId());
     }
 
+    @Test
+    void processOrderShouldReturnNotFoundWhenOrderDoesNotExist()
+            throws Exception {
+
+        UUID orderId = UUID.randomUUID();
+
+        mockMvc.perform(
+                        post("/orders/{orderId}/processOrder", orderId)
+                                .contentType("application/json")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("Not Found"))
+                .andExpect(jsonPath("$.message")
+                        .value("Order not found: " + orderId));
+    }
+
     private static OrderEntity createOrder(Set<ProductEntity> products) {
         OrderEntity order = new OrderEntity();
         order.setId(UUID.randomUUID());

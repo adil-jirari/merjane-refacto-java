@@ -1,6 +1,7 @@
 package com.nimbleways.springboilerplate.domain.strategy;
 
 import com.nimbleways.springboilerplate.common.domain.valueobject.ProductType;
+import com.nimbleways.springboilerplate.domain.exception.OrderDomainException;
 import com.nimbleways.springboilerplate.domain.exception.UnsupportedProductException;
 
 import java.util.Map;
@@ -16,7 +17,7 @@ public class ProductProcessingStrategyResolverImpl implements ProductProcessingS
     @Override
     public ProductProcessingStrategy resolve(ProductType productType) {
         if (productType == null) {
-            throw new UnsupportedProductException("Product type cannot be null");
+            throw new OrderDomainException("Product type cannot be null");
         }
         ProductProcessingStrategy productProcessingStrategy = STRATEGIES.get(productType);
         if (productProcessingStrategy == null) {

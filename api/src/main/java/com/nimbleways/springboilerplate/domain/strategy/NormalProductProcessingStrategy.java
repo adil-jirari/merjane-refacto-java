@@ -5,6 +5,7 @@ import com.nimbleways.springboilerplate.domain.event.ProductDecreasedEvent;
 import com.nimbleways.springboilerplate.domain.event.ProductDelayedEvent;
 import com.nimbleways.springboilerplate.domain.event.ProductProcessedEvent;
 import com.nimbleways.springboilerplate.domain.exception.OrderDomainException;
+import com.nimbleways.springboilerplate.domain.exception.UnsupportedProductException;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -22,6 +23,6 @@ public class NormalProductProcessingStrategy implements ProductProcessingStrateg
         } else if (product.hasPositiveLeadTime()) {
             return new ProductDelayedEvent(product, now);
         }
-        throw new OrderDomainException("Normal Product with Id: " + product.getId().getValue() + " cannot be processed!");
+        throw new UnsupportedProductException("Normal Product with Id: " + product.getId().getValue() + " cannot be processed!");
     }
 }
