@@ -1,222 +1,587 @@
-### Consignes: 
-* Ignorez les migrations BDD
-* Ne pas modifier les classes qui ont un commentaire: `// WARN: Should not be changed during the exercise
-`
-* Pour lancer les tests (depuis le sous-répertoire `api`) :
-  * unitaires: `mvnw test`
-  * integration: `mvnw integration-test`
-  * tous: `mvnw verify`
+# Order Processing Refactoring
 
-# Merjane Refactoring Exercise
+## Overview
 
-This project is a refactoring exercise for the Merjane inventory and order processing application.
+This project has been refactored to improve maintainability, extensibility, testability, and separation of concerns by applying several software design principles and architectural patterns:
 
-The goal of the exercise is to improve the existing codebase while ensuring that no business regression is introduced.
+- Domain-Driven Design (DDD)
+- Hexagonal Architecture (Ports & Adapters)
+- Strategy Pattern
+- Domain Events
+- Repository Pattern
+- Application Services
+- Persistence Mapping Layer
 
-## Business Context
-
-Merjane tracks product availability during order processing.
-
-Each product has:
-
-- `available`: number of units available in stock
-- `leadTime`: number of days required for restocking
-- `type`: product category
-
-The supported product types are:
-
-- `NORMAL`
-- `SEASONAL`
-- `EXPIRABLE`
-
-### NORMAL products
-
-Normal products do not have specific constraints.
-
-When stock is available, the product availability is decreased after an order is processed.
-
-When the product is out of stock, a delay notification is sent if a positive lead time exists.
-
-### SEASONAL products
-
-Seasonal products are available only during a specific season.
-
-When stock is available and the product is currently in season, the product availability is decreased.
-
-When the product is out of stock:
-
-- if the restocking date is after the season end date, the product is considered unavailable;
-- if the product is not yet in season, the product is considered unavailable;
-- otherwise, a delay notification is sent.
-
-### EXPIRABLE products
-
-Expirable products can be sold only before their expiration date.
-
-When stock is available and the product is not expired, the product availability is decreased.
-
-When the product is expired or unavailable, it is marked as unavailable and an expiration notification is sent.
+The objective of this refactoring is to isolate business rules from infrastructure concerns and make the system easier to evolve as new product types or notification channels are introduced.
 
 ---
 
-## Refactoring Summary
+# Original Challenges
 
-The original implementation contained business logic inside the controller and mixed several responsibilities in the same service.
+The initial implementation contained:
 
-The refactoring focused on:
+- Business rules mixed with technical concerns
+- Product type conditionals spread across the codebase
+- Tight coupling between processing logic and notification delivery
+- Direct dependency on persistence implementation details
+- Difficult extensibility when introducing new product types
 
-- improving separation of concerns;
-- moving business logic out of the controller;
-- applying the Strategy pattern for product-specific rules;
-- increasing test coverage around business behavior;
-- preserving the existing behavior as much as possible.
+Refactoring focused on improving:
 
----
-
-## Architecture
-
-### Controller layer
-
-The controller is responsible only for HTTP concerns.
-
-It receives the request and delegates order processing to `OrderService`.
-
-text controllers └── MyController.java
-
-### Service layer
-
-`OrderService` orchestrates order processing.
-
-It retrieves the order and delegates each product processing to `ProductService`.
-
-text services └── implementations ├── OrderService.java ├── ProductService.java └── NotificationService.java
-
-### Product processing strategies
-
-`ProductService` acts as a router and delegates product processing to the matching strategy.
-
-Each product type has its own strategy:
-
-text services └── implementations └── product ├── ProductProcessingStrategy.java ├── NormalProductProcessingStrategy.java ├── SeasonalProductProcessingStrategy.java └── ExpirableProductProcessingStrategy.java
-
-This design follows the Open/Closed Principle:
-
-- adding a new product type requires adding a new strategy;
-- existing strategies do not need to be modified;
-- `ProductService` remains simple and focused.
+- Separation of concerns
+- Domain expressiveness
+- Testability
+- Extensibility
+- Maintainability
 
 ---
 
-## Main Design Decisions
+# Architecture
 
-### Strategy Pattern
+```text
+src/main/java
 
-The Strategy pattern was introduced to isolate product-specific rules.
+domain
+├── entity
+│   ├── Order
+│   └── Product
+│
+├── event
+│   ├── ProductProcessedEvent
+│   ├── ProductDecreasedEvent
+│   ├── ProductDelayedEvent
+│   ├── ProductExpiredEvent
+│   └── ProductOutOfStockEvent
+│
+├── strategy
+│   ├── ProductProcessingStrategy
+│   ├── NormalProductProcessingStrategy
+│   ├── ExpirableProductProcessingStrategy
+│   ├── SeasonalProductProcessingStrategy
+│   ├── ProductProcessingStrategyResolver
+│   └── ProductProcessingStrategyResolverImpl
+│
+├── exception
+│
+└── OrderDomainService
 
-Before refactoring, the product processing logic was implemented using conditional branches based on product type.
+service
+├── OrderApplicationService
+├── ProductEventPublisher
+│
+├── dto
+│
+└── ports
+    ├── input
+    └── output
+        ├── repository
+        └── notification
 
-After refactoring:
-
-- `NormalProductProcessingStrategy` handles `NORMAL` products;
-- `SeasonalProductProcessingStrategy` handles `SEASONAL` products;
-- `ExpirableProductProcessingStrategy` handles `EXPIRABLE` products.
-
-This makes the code easier to read, test, and extend.
-
-### OrderService Extraction
-
-Order processing orchestration was extracted from the controller into `OrderService`.
-
-This keeps the controller thin and improves the separation between HTTP handling and business logic.
-
-### ProductType Enum
-
-A `ProductType` enum was introduced to avoid spreading raw string values across the codebase.
-
-This improves readability and reduces the risk of typos in product type handling.
-
-### Repository Identifier Type
-
-`ProductRepository` was aligned with the `Product` entity identifier type.
-
-Since `Product.id` is a `Long`, the repository uses `Long` as its identifier type.
-
----
-
-## Tests
-
-The project contains unit and integration tests.
-
-### Unit tests
-
-Unit tests cover the business logic in isolation:
-
-text services └── implementations ├── OrderServiceTest.java ├── ProductServiceTest.java └── product ├── NormalProductProcessingStrategyTest.java ├── SeasonalProductProcessingStrategyTest.java └── ExpirableProductProcessingStrategyTest.java
-
-Covered cases include:
-
-- normal product with available stock;
-- normal product out of stock with lead time;
-- normal product out of stock without lead time;
-- seasonal product currently in season;
-- seasonal product before season start;
-- seasonal product with restocking after season end;
-- seasonal product with valid restocking delay;
-- expirable product not expired;
-- expirable product expired;
-- expirable product out of stock;
-- product routing through `ProductService`;
-- order orchestration through `OrderService`.
-
-### Integration tests
-
-Integration tests validate the application context and the order processing endpoint.
-
-text controllers └── MyControllerIntegrationTests.java
-ApplicationIntegrationTests.java
+infrastructure
+├── application
+│   └── controller
+│
+├── persistence
+│   ├── entity
+│   ├── mapper
+│   ├── repository
+│   └── adapter
+│
+└── notification
+```
 
 ---
 
-## Running the Project
+# Domain-Driven Design
 
-All commands must be executed from the `api` directory.
-bash cd api
+## Aggregate Root
 
-### Run unit tests
-bash ./mvnw test
+The Order has been modeled as the Aggregate Root.
 
-### Run integration tests
-bash ./mvnw integration-test
+```text
+Order
+ └── Products
+```
 
-### Run all checks
-bash ./mvnw verify
+The application layer interacts with products through the order aggregate instead of manipulating products independently.
 
-The `verify` command runs:
+Responsibilities of the aggregate:
 
-- unit tests;
-- integration tests;
-- JaCoCo coverage checks;
-- PMD checks;
-- packaging.
+- Validate business invariants
+- Provide access to products to process
+- Protect domain consistency
 
 ---
 
-## Main Endpoint
+## Rich Domain Model
 
-### Process an order
-http POST /api/orders/{orderId}/processOrder
+Business behavior was moved from services into domain entities.
 
-Example response:
-json { "id": 1 }
+Examples:
 
+```java
+product.hasAvailableStock();
+product.hasPositiveLeadTime();
+product.isNotExpired(today);
+product.isCurrentlyInSeason(today);
+product.isBeforeSeasonStart(today);
+product.isRestockAfterSeasonEnd(today);
+
+product.decreaseAvailableStock();
+product.markAsUnavailable();
+```
+
+This approach keeps business rules close to the business data.
 
 ---
 
-## Notes
+# Strategy Pattern
 
-The following constraints from the exercise were respected:
+Product-specific processing behavior is implemented using the Strategy Pattern.
 
-- database migrations were not modified;
-- classes marked with `// WARN: Should not be changed during the exercise` were not modified;
-- the refactoring was covered by automated tests;
-- the application still passes the Maven verification lifecycle.
+## Strategy Interface
+
+```java
+public interface ProductProcessingStrategy {
+    ProductProcessedEvent process(Product product);
+}
+```
+
+---
+
+## Normal Products
+
+Implementation:
+
+```java
+NormalProductProcessingStrategy
+```
+
+Possible outcomes:
+
+- ProductDecreasedEvent
+- ProductDelayedEvent
+- OrderDomainException
+
+Example:
+
+```java
+if (product.hasAvailableStock()) {
+    ...
+}
+```
+
+---
+
+## Expirable Products
+
+Implementation:
+
+```java
+ExpirableProductProcessingStrategy
+```
+
+Possible outcomes:
+
+- ProductDecreasedEvent
+- ProductExpiredEvent
+
+Example:
+
+```java
+if(product.hasAvailableStock() &&
+   product.isNotExpired(today))
+```
+
+---
+
+## Seasonal Products
+
+Implementation:
+
+```java
+SeasonalProductProcessingStrategy
+```
+
+Possible outcomes:
+
+- ProductDecreasedEvent
+- ProductDelayedEvent
+- ProductOutOfStockEvent
+
+Example:
+
+```java
+if(product.isCurrentlyInSeason(today))
+```
+
+---
+
+# Strategy Resolver
+
+Strategy selection is centralized through a resolver.
+
+```java
+ProductProcessingStrategyResolver
+```
+
+Implementation:
+
+```java
+ProductProcessingStrategyResolverImpl
+```
+
+Usage:
+
+```java
+ProductProcessingStrategy strategy =
+        strategyResolver.resolve(product.getType());
+```
+
+Benefits:
+
+- Removes product-type conditionals
+- Centralizes strategy retrieval
+- Simplifies extension for new product types
+
+---
+
+# Domain Events
+
+Domain processing produces events representing business outcomes.
+
+Base event:
+
+```java
+ProductProcessedEvent
+```
+
+Specializations:
+
+```java
+ProductDecreasedEvent
+ProductDelayedEvent
+ProductExpiredEvent
+ProductOutOfStockEvent
+```
+
+Benefits:
+
+- Explicit business outcomes
+- Decoupling from notification delivery
+- Easier future event-driven evolution
+
+---
+
+# Domain Service
+
+## OrderDomainService
+
+The domain service orchestrates the processing of products inside an order.
+
+Implementation:
+
+```java
+OrderDomainServiceImpl
+```
+
+Responsibilities:
+
+- Validate the order
+- Resolve processing strategy
+- Process products
+- Produce domain events
+
+Example:
+
+```java
+List<ProductProcessedEvent> events =
+        orderDomainService
+                .validateAndProcessOrder(order);
+```
+
+---
+
+# Application Layer
+
+## OrderApplicationService
+
+The application service coordinates the use case execution.
+
+Implementation:
+
+```java
+OrderApplicationServiceImpl
+```
+
+Workflow:
+
+```text
+Load Aggregate
+    ↓
+Execute Domain Logic
+    ↓
+Persist Changes
+    ↓
+Publish Events
+```
+
+Example:
+
+```java
+Order order =
+        orderRepository.findById(...);
+
+List<ProductProcessedEvent> events =
+        orderDomainService
+                .validateAndProcessOrder(order);
+
+productRepository.save(...);
+
+productEventPublisher.publish(...);
+```
+
+The application service contains orchestration logic only.
+
+Business rules remain inside the domain layer.
+
+---
+
+# Hexagonal Architecture
+
+The project follows a Ports & Adapters approach.
+
+## Input Ports
+
+Expose application use cases.
+
+```java
+OrderApplicationService
+```
+
+---
+
+## Output Ports
+
+Repositories:
+
+```java
+OrderRepository
+ProductRepository
+```
+
+Notification publishers:
+
+```java
+ProductDelayNotificationMessagePublisher
+
+ProductExpirationNotificationMessagePublisher
+
+ProductOutOfStockNotificationMessagePublisher
+```
+
+The core business layer depends only on abstractions.
+
+---
+
+# Persistence Layer
+
+## Repository Adapters
+
+Infrastructure-specific implementations:
+
+```java
+OrderRepositoryImpl
+ProductRepositoryImpl
+```
+
+Responsibilities:
+
+- JPA interaction
+- Mapping between domain and persistence models
+
+---
+
+## Persistence Entities
+
+JPA entities were introduced to isolate persistence concerns.
+
+Examples:
+
+```java
+OrderEntity
+ProductEntity
+```
+
+The domain model remains completely independent from JPA.
+
+---
+
+## Mapper Layer
+
+Implementation:
+
+```java
+OrderDataAccessMapper
+```
+
+Responsibilities:
+
+```text
+Domain Model
+      ↕
+Persistence Model
+```
+
+Examples:
+
+```java
+OrderEntity ↔ Order
+
+ProductEntity ↔ Product
+```
+
+Benefits:
+
+- Domain model is persistence-agnostic
+- No JPA annotations in domain entities
+- Cleaner architecture boundaries
+
+---
+
+# Event Publication
+
+A dedicated publisher abstraction has been introduced.
+
+Interface:
+
+```java
+ProductEventPublisher
+```
+
+Implementation:
+
+```java
+ProductEventPublisherImpl
+```
+
+Responsibilities:
+
+```text
+ProductDelayedEvent
+        ↓
+Delay Notification
+
+ProductExpiredEvent
+        ↓
+Expiration Notification
+
+ProductOutOfStockEvent
+        ↓
+Out Of Stock Notification
+```
+
+This prevents the application service from knowing notification implementation details.
+
+---
+
+# Transaction Management
+
+Order processing is transactional.
+
+```java
+@Transactional
+public OrderProcessResponse processOrder(...)
+```
+
+Current flow:
+
+```text
+Load Order
+    ↓
+Process Products
+    ↓
+Persist Updates
+    ↓
+Publish Events
+```
+
+Products are persisted before event publication.
+
+---
+
+# Testing Strategy
+
+The project includes both unit and integration tests.
+
+## Domain Tests
+
+```text
+NormalProductProcessingStrategyTest
+
+ExpirableProductProcessingStrategyTest
+
+SeasonalProductProcessingStrategyTest
+
+ProductProcessingStrategyResolverImplTest
+
+OrderDomainServiceImplTest
+```
+
+---
+
+## Infrastructure Tests
+
+```text
+OrderRepositoryImplTest
+
+ProductRepositoryImplTest
+
+OrderDataAccessMapperTest
+```
+
+---
+
+## Application Tests
+
+```text
+OrderApplicationServiceImplTest
+
+ProductEventPublisherImplTest
+```
+
+---
+
+## Integration Tests
+
+```text
+OrderControllerIntegrationTests
+```
+
+The integration tests validate the full processing workflow.
+
+---
+
+# Key Improvements
+
+✅ Applied Domain-Driven Design
+
+✅ Introduced Aggregate Root pattern
+
+✅ Introduced Rich Domain Model
+
+✅ Introduced Strategy Pattern
+
+✅ Added Domain Events
+
+✅ Added Domain Service
+
+✅ Applied Hexagonal Architecture
+
+✅ Introduced Repository Abstractions
+
+✅ Added Persistence Mapping Layer
+
+✅ Decoupled Notification Delivery
+
+✅ Improved 
